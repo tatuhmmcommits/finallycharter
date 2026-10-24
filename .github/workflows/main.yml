@@ -13,27 +13,47 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
-      - name: Locate Gradle wrapper
-        run: |
-          pwd
-          ls -la
-          find . -name gradlew -type f
+      - name: Validate Gradle wrapper
+        uses: gradle/actions/wrapper-validation@v6
 
-      - name: Setup Java
-        uses: actions/setup-java@v4
+      - name: Setup JDK
+        uses: actions/setup-java@v5
         with:
-          java-version: '21'
-          distribution: temurin
+          java-version: '25'
+          distribution: 'microsoft'
+
+      - name: Find Gradle wrapper
+        run: |
+          echo "Current directory:"
+          pwd
+          echo "Repository files:"
+          ls -la
+          echo "Searching for gradlew:"
+          find . -type f -name gradlew
 
       - name: Build mod
+        shell: bash
         run: |
-          chmod +x ./gradlew
+          WRAPPER="$(find . -type f -name gradlew | head -n 1)"
+          if [ -z "$WRAPPER" ]; then
+            echo "ERROR: gradlew was not found in the checked-out repository."
+            exit 1
+          fi
+          chmod +x "$WRAPPER"
+          cd "$(dirname "$WRAPPER")"
           ./gradlew build
 
       - name: Upload mod jar
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: charter-jar
-          path: build/libs/*.jar
+          path: '**/build/libs/*.jar'
+          if-no-files-found: error
+
+      - name: Attach jar to release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: '**/build/libs/*.jar'
